@@ -1,0 +1,31 @@
+# Use an official Python runtime as a parent image
+# python:3.9-slim is a lightweight version suitable for containers
+FROM python:3.9-slim
+
+# Set the working directory in the container
+WORKDIR /app
+
+# Install system dependencies required for some python packages
+# build-essential is often needed for compiling libraries
+RUN apt-get update && apt-get install -y \
+    build-essential \
+    && rm -rf /var/lib/apt/lists/*
+
+# Copy the requirements file into the container
+COPY requirements.txt .
+
+# Install any needed packages specified in requirements.txt
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Copy the current directory contents into the container at /app
+COPY . .
+
+# Expose port 8501 (Streamlit's default port)
+EXPOSE 8501
+
+# Healthcheck to ensure the container is running correctly
+HEALTHCHECK CMD curl --fail http://localhost:8501/_stcore/health || exit 1
+
+# Command to run the app
+# address=0.0.0.0 is CRITICAL for running inside Docker/AWS
+ENTRYPOINT ["streamlit", "run", "app.py", "--server.port=8501", "--server.address=0.0.0.0"]
