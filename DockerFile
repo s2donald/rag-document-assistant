@@ -20,12 +20,12 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Copy the current directory contents into the container at /app
 COPY . .
 
-# Expose port 8501 (Streamlit's default port)
+# Expose port 8501 (Not Streamlit's default port)
 EXPOSE 8501
 
 # Healthcheck to ensure the container is running correctly
-HEALTHCHECK CMD curl --fail http://localhost:8501/_stcore/health || exit 1
+HEALTHCHECK CMD curl --fail http://localhost:8080/_stcore/health || exit 1
 
 # Command to run the app
 # address=0.0.0.0 is CRITICAL for running inside Docker/AWS
-ENTRYPOINT ["streamlit", "run", "app.py", "--server.port=8501", "--server.address=0.0.0.0"]
+ENTRYPOINT ["streamlit", "run", "app.py", "--server.port=8501", "--server.address=0.0.0.0", "--server.enableCORS=false", "--server.enableXsrfProtection=false"]
