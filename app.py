@@ -3,32 +3,29 @@ import os
 import tempfile
 from langchain_community.document_loaders import PyPDFLoader
 from langchain_text_splitters import RecursiveCharacterTextSplitter
-from langchain_huggingface import HuggingFaceEmbeddings, HuggingFaceEndpoint
+from langchain_huggingface import HuggingFaceEmbeddings
+from langchain_openai import ChatOpenAI
 from langchain_community.vectorstores import FAISS
 from langchain.chains import ConversationalRetrievalChain
+from langchain.prompts import PromptTemplate
 
 # Page Config
-st.set_page_config(page_title="Cloud RAG Demo", layout="wide")
+st.set_page_config(page_title="RAG Document Assistant", layout="wide")
 
-st.title("☁️ AWS RAG Demo: Chat with PDF")
-st.markdown("### A Serverless RAG App (Free Version with Hugging Face)")
+st.title("☁️ AWS RAG Demo: Understand the contents of the PDF")
+st.markdown("### A Serverless RAG App (HF Router via Featherless.ai)")
 
 # Sidebar for API Key and File Upload
 with st.sidebar:
     st.header("Configuration")
-    
-    # Securely getting API Key
     api_token = st.text_input("Enter Hugging Face Token", type="password", help="Get your free token from huggingface.co/settings/tokens")
-    
     st.divider()
-    
     uploaded_file = st.file_uploader("Upload a PDF", type="pdf")
-    
-    st.info("This app uses the free Hugging Face Inference API and runs locally in a Docker container on AWS.")
+    st.info("This app uses the Hugging Face 'Chat Completion' Router to access specific providers.")
 
 # Main Logic
 if uploaded_file and api_token:
-    os.environ["HUGGINGFACEHUB_API_TOKEN"] = api_token
+    os.environ["OPENAI_API_KEY"] = api_token
     
     # Save uploaded file to a temporary file
     with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp_file:
@@ -49,28 +46,45 @@ if uploaded_file and api_token:
             splits = text_splitter.split_documents(documents)
 
             # 3. Create Vector Store (FAISS)
-            # We use a lightweight local embedding model (all-MiniLM-L6-v2)
-            # This runs ON the container CPU, so it costs nothing but RAM.
             embeddings = HuggingFaceEmbeddings(model_name="sentence-transformers/all-MiniLM-L6-v2")
             vectorstore = FAISS.from_documents(splits, embeddings)
             
-            # 4. Define the LLM
-            # We use the Mistral 7B model via the Hugging Face Hub API (Free Tier)
-            repo_id = "mistralai/Mistral-7B-Instruct-v0.3"
-            llm = HuggingFaceEndpoint(
-                repo_id=repo_id,
+            # 4. Define the LLM (ChatOpenAI pointed at Hugging Face)
+            llm = ChatOpenAI(
+                base_url="https://router.huggingface.co/v1",
+                model="HuggingFaceH4/zephyr-7b-beta:featherless-ai",
                 temperature=0.1,
-                model_kwargs={"max_length": 512}
+                max_tokens=512,
             )
 
-            # 5. Create Retrieval Chain
+            # 5. Define a Strict Prompt Template
+            # We explicitly tell it how to behave.
+            custom_template = """
+            <|system|>
+            You are a helpful AI assistant. Use the following pieces of context to answer the user's question.
+            If you don't know the answer, just say that you don't know, don't try to make up an answer.
+            </s>
+            <|user|>
+            Context:
+            {context}
+
+            Question:
+            {question}
+            </s>
+            <|assistant|>
+            """
+            
+            QA_CHAIN_PROMPT = PromptTemplate.from_template(custom_template)
+
+            # 6. Create Retrieval Chain with Custom Prompt
             qa_chain = ConversationalRetrievalChain.from_llm(
                 llm=llm,
                 retriever=vectorstore.as_retriever(),
-                return_source_documents=True
+                return_source_documents=True,
+                combine_docs_chain_kwargs={"prompt": QA_CHAIN_PROMPT}
             )
 
-        st.success("PDF Processed! You can now chat with your document.")
+        st.success("PDF Processed! You can now ask questions about your document to the chat.")
 
         # Chat Interface
         if "messages" not in st.session_state:
@@ -83,19 +97,15 @@ if uploaded_file and api_token:
 
         # React to user input
         if prompt := st.chat_input("Ask a question about the PDF..."):
-            # Display user message
             st.chat_message("user").markdown(prompt)
             st.session_state.messages.append({"role": "user", "content": prompt})
 
-            # Generate response
             with st.chat_message("assistant"):
                 with st.spinner("Thinking..."):
-                    # We pass an empty chat history for simplicity in this stateless demo
-                    response = qa_chain({"question": prompt, "chat_history": []})
+                    response = qa_chain.invoke({"question": prompt, "chat_history": []})
                     answer = response['answer']
                     st.markdown(answer)
                     
-                    # Optional: Show sources
                     with st.expander("View Source Context"):
                         for doc in response['source_documents']:
                             st.write(doc.page_content[:200] + "...")
@@ -113,4 +123,4 @@ if uploaded_file and api_token:
 elif not api_token:
     st.warning("Please enter your Hugging Face API Token in the sidebar to proceed.")
 elif not uploaded_file:
-    st.info("Please upload a PDF document to start chatting.")
+    st.info("Please upload a PDF document to start asking questions about it.")
