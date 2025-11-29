@@ -14,7 +14,7 @@ The application is fully containerized using Docker and deployed to AWS App Runn
 
 💬 Context-Aware Chat: Ask questions about the specific content of your uploaded document.
 
-🧠 Free Tier AI: Uses the Mistral-7B-Instruct model via Hugging Face's free inference API.
+🧠 Free Tier AI: Uses the Zephyr-7b-Beta model via Hugging Face's free inference API.
 
 ⚡ Serverless Deployment: auto-scaling architecture using AWS App Runner.
 
@@ -30,7 +30,7 @@ Vector Store: FAISS (In-memory vector search)
 
 Embeddings: all-MiniLM-L6-v2 (Runs locally on CPU)
 
-LLM: Mistral-7B (External API via Hugging Face)
+LLM: zephyr-7b-beta (External API via Featherless AI)
 
 Cloud Hosting: AWS App Runner pulling from Amazon ECR
 
